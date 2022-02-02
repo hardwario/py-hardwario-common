@@ -2,6 +2,9 @@ name: Main
 
 on:
   push:
+    paths-ignore:
+      - '**/README.md'
+      - '.*'
   pull_request:
     types: [opened, synchronize]
   workflow_dispatch:
@@ -47,6 +50,7 @@ jobs:
     needs: test_build
     if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-latest
+    environment: deploy
     steps:
       - uses: actions/checkout@v2
       - name: Set env
