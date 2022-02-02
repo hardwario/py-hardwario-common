@@ -4,6 +4,7 @@ import array
 
 class PIB:
 
+    SIZE_BASE = 88 + 4  # 92
     SIGNATURE = (0, 4, '<L')
     VERSION = (4, 1, 'B')
     SIZE = (8, 2, '<H')
@@ -18,7 +19,6 @@ class PIB:
 
     def __init__(self, buf=None):
         self._buf = array.array('B', [0xff] * 128)
-
         self._is_core_module = False
         self._has_rf_correction = False
 
@@ -43,7 +43,7 @@ class PIB:
             raise Exception('Integrity check for PIB failed crc')
 
     def reset(self):
-        self._size = 92
+        self._size = self.SIZE_BASE
         for i in range(128):
             self._buf[i] = 0xff
         self._pack(self.SIGNATURE, 0xbabecafe)
@@ -55,7 +55,7 @@ class PIB:
         self._pack(self.SIZE, self._size)
 
     def _update_family(self):
-        self._size = 88 + 4  # 92
+        self._size = self.SIZE_BASE
         self._is_core_module = False
 
         family = self.get_family()
