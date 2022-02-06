@@ -14,11 +14,11 @@ class PIB:
         1: (0x0c, '<L'),
         2: (0x06, '<L')
     }
-    HW_REVISION = {
+    HARDWARE_REVISION = {
         1: (0x10, '<H'),
         2: (0x0a, '<H')
     }
-    HW_VARIANT = {
+    HARDWARE_VARIANT = {
         1: (0x14, '<L'),
         2: (0x0c, '<L')
     }
@@ -112,17 +112,17 @@ class PIB:
         self._update_family()
         self._pack(self.SIZE, self._size)
 
-    def get_hw_revision(self):
-        return self._unpack(self.HW_REVISION)
+    def get_hardware_revision(self):
+        return self._unpack(self.HARDWARE_REVISION)
 
-    def set_hw_revision(self, value):
-        self._pack(self.HW_REVISION, value)
+    def set_hardware_revision(self, value):
+        self._pack(self.HARDWARE_REVISION, value)
 
-    def get_hw_variant(self):
-        return self._unpack(self.HW_VARIANT)
+    def get_hardware_variant(self):
+        return self._unpack(self.HARDWARE_VARIANT)
 
-    def set_hw_variant(self, value):
-        self._pack(self.HW_VARIANT, value)
+    def set_hardware_variant(self, value):
+        self._pack(self.HARDWARE_VARIANT, value)
 
     def get_vendor_name(self):
         return '%s' % self._unpack(self.VENDOR_NAME).decode('ascii').rstrip('\0')
@@ -176,8 +176,8 @@ class PIB:
             'version': '0x%02x' % self.get_version(),
             'size': '0x%04x' % self.get_size(),
             'serial_number': '0x%08x' % self.get_serial_number(),
-            'hw_revision': '0x%04x' % self.get_hw_revision(),
-            'hw_variant': '0x%08x' % self.get_hw_variant(),
+            'hardware_revision': '0x%04x' % self.get_hardware_revision(),
+            'hardware_variant': '0x%08x' % self.get_hardware_variant(),
             'vendor_name': self.get_vendor_name(),
             'product_name': self.get_product_name(),
             'crc': '0x%08x' % self.get_crc()
@@ -197,8 +197,8 @@ class PIB:
             crc = self._calc_crc_item(crc, self.VERSION)
             crc = self._calc_crc_item(crc, self.SIZE)
             crc = self._calc_crc_item(crc, self.SERIAL_NUMBER)
-            crc = self._calc_crc_item(crc, self.HW_REVISION)
-            crc = self._calc_crc_item(crc, self.HW_VARIANT)
+            crc = self._calc_crc_item(crc, self.HARDWARE_REVISION)
+            crc = self._calc_crc_item(crc, self.HARDWARE_VARIANT)
             crc = self._calc_crc_item(crc, self.VENDOR_NAME)
             crc = self._calc_crc_item(crc, self.PRODUCT_NAME)
             if self._is_core_module:
