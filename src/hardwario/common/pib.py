@@ -4,23 +4,46 @@ import array
 
 class PIB:
 
-    SIZE_BASE = 88 + 4  # 92
-
     SIGNATURE = (0, '<L')
     VERSION = (4, 'B')
-    SIZE = (8, '<H')
-    SERIAL_NUMBER = (12, '<L')
-    HW_REVISION = (16, '<H')
-    HW_VARIANT = (20, '<L')
-    VENDOR_NAME = (24, '<32s')
-    PRODUCT_NAME = (56, '<32s')
+    SIZE = {
+        1: (0x08, '<H'),
+        2: (0x05, '<B')
+    }
+    SERIAL_NUMBER = {
+        1: (0x0c, '<L'),
+        2: (0x06, '<L')
+    }
+    HW_REVISION = {
+        1: (0x10, '<H'),
+        2: (0x0a, '<H')
+    }
+    HW_VARIANT = {
+        1: (0x14, '<L'),
+        2: (0x0c, '<L')
+    }
+    VENDOR_NAME = {
+        1: (0x18, '<32s'),
+        2: (0x10, '<32s')
+    }
+    PRODUCT_NAME = {
+        1: (0x38, '<32s'),
+        2: (0x30, '<32s')
+    }
 
     RF_OFFSET = (88, 2, '<h')
     RF_CORRECTION = (88, 4, '<L')
 
-    def __init__(self, buf=None):
+    def __init__(self, version=1, buf=None):
         self._buf = array.array('B', [0xff] * 128)
-        self._version = 1
+        self._default_version = version
+        if version == 1:
+            self._default_size = 92  # 0x58 + 4
+        elif version == 2:
+            self._default_size = 84  # 0x50 + 4
+        else:
+            raise Exception('PIB failed version')
+
         self._is_core_module = False
         self._has_rf_correction = False
 
@@ -37,7 +60,7 @@ class PIB:
 
         if self.get_signature() != 0xbabecafe:
             raise Exception('Integrity check for PIB failed signature')
-        if self.get_version() != self._version:
+        if self.get_version() in (1, 2):
             raise Exception('Integrity check for PIB failed version')
         if self.get_size() != self._size:
             raise Exception('Integrity check for PIB failed size')
@@ -45,11 +68,11 @@ class PIB:
             raise Exception('Integrity check for PIB failed crc')
 
     def reset(self):
-        self._size = self.SIZE_BASE
+        self._size = self._default_size
         for i in range(128):
             self._buf[i] = 0xff
         self._pack(self.SIGNATURE, 0xbabecafe)
-        self._pack(self.VERSION, 1)
+        self._pack(self.VERSION, self._default_version)
         self.set_vendor_name('')
         self.set_product_name('')
         self._is_core_module = False
@@ -57,7 +80,7 @@ class PIB:
         self._pack(self.SIZE, self._size)
 
     def _update_family(self):
-        self._size = self.SIZE_BASE
+        self._size = self._default_size
         self._is_core_module = False
 
         family = self.get_family()
@@ -168,33 +191,46 @@ class PIB:
         return payload
 
     def calc_crc(self):
-        crc = 0xffffffff
-        crc = self._calc_crc(crc, self.SIGNATURE)
-        crc = self._calc_crc(crc, self.VERSION)
-        crc = self._calc_crc(crc, self.SIZE)
-        crc = self._calc_crc(crc, self.SERIAL_NUMBER)
-        crc = self._calc_crc(crc, self.HW_REVISION)
-        crc = self._calc_crc(crc, self.HW_VARIANT)
-        crc = self._calc_crc(crc, self.VENDOR_NAME)
-        crc = self._calc_crc(crc, self.PRODUCT_NAME)
-        if self._is_core_module:
-            crc = self._calc_crc(crc, self.RF_OFFSET)
-        if self._has_rf_correction:
-            crc = self._calc_crc(crc, self.RF_CORRECTION)
-        return crc
+        if self.get_version() == 1:
+            crc = 0xffffffff
+            crc = self._calc_crc_item(crc, self.SIGNATURE)
+            crc = self._calc_crc_item(crc, self.VERSION)
+            crc = self._calc_crc_item(crc, self.SIZE)
+            crc = self._calc_crc_item(crc, self.SERIAL_NUMBER)
+            crc = self._calc_crc_item(crc, self.HW_REVISION)
+            crc = self._calc_crc_item(crc, self.HW_VARIANT)
+            crc = self._calc_crc_item(crc, self.VENDOR_NAME)
+            crc = self._calc_crc_item(crc, self.PRODUCT_NAME)
+            if self._is_core_module:
+                crc = self._calc_crc_item(crc, self.RF_OFFSET)
+            if self._has_rf_correction:
+                crc = self._calc_crc_item(crc, self.RF_CORRECTION)
+            return crc
+        else:
+            return self._calc_crc(0, 0, self._size - 4)
 
     def _pack(self, mem, data):
+        if isinstance(mem, dict):
+            mem = mem[self.get_version()]
         offset, fmt = mem
         struct.pack_into(fmt, self._buf, offset, data)
 
     def _unpack(self, mem):
+        if isinstance(mem, dict):
+            mem = mem[self.get_version()]
         offset, fmt = mem
         return struct.unpack_from(fmt, self._buf, offset)[0]
 
-    def _calc_crc(self, crc, mem):
+    def _calc_crc_item(self, crc, mem):
+        if isinstance(mem, dict):
+            mem = mem[self.get_version()]
         offset, fmt = mem
         size = struct.calcsize(fmt)
-        for n in self._buf[offset: offset + size]:
+        return self._calc_crc(crc, offset, size)
+
+    def _calc_crc(self, crc, offset, size):
+        for i in range(offset, offset + size):
+            n = self._buf[i]
             crc ^= n
             for _ in range(8):
                 crc = (crc >> 1) ^ (0xedb88320 & ~((crc & 1) - 1))
