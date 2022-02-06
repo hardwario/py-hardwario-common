@@ -10,7 +10,7 @@ import hardwario
 @click.group()
 @click.option('--log', 'log_level', type=click.Choice(['debug', 'info', 'warning', 'error']), help='Log level', default="warning")
 def cli_root(log_level):
-    '''HARDWARIO CLI Tool'''
+    '''HARDWARIO Command Line Tool.'''
     logging.getLogger().setLevel(log_level.upper())
 
 
