@@ -5,20 +5,22 @@ import array
 class PIB:
 
     SIZE_BASE = 88 + 4  # 92
-    SIGNATURE = (0, 4, '<L')
-    VERSION = (4, 1, 'B')
-    SIZE = (8, 2, '<H')
-    SERIAL_NUMBER = (12, 4, '<L')
-    HW_REVISION = (16, 2, '<H')
-    HW_VARIANT = (20, 4, '<L')
-    VENDOR_NAME = (24, 32, '<32s')
-    PRODUCT_NAME = (56, 32, '<32s')
+
+    SIGNATURE = (0, '<L')
+    VERSION = (4, 'B')
+    SIZE = (8, '<H')
+    SERIAL_NUMBER = (12, '<L')
+    HW_REVISION = (16, '<H')
+    HW_VARIANT = (20, '<L')
+    VENDOR_NAME = (24, '<32s')
+    PRODUCT_NAME = (56, '<32s')
 
     RF_OFFSET = (88, 2, '<h')
     RF_CORRECTION = (88, 4, '<L')
 
     def __init__(self, buf=None):
         self._buf = array.array('B', [0xff] * 128)
+        self._version = 1
         self._is_core_module = False
         self._has_rf_correction = False
 
@@ -35,7 +37,7 @@ class PIB:
 
         if self.get_signature() != 0xbabecafe:
             raise Exception('Integrity check for PIB failed signature')
-        if self.get_version() != 1:
+        if self.get_version() != self._version:
             raise Exception('Integrity check for PIB failed version')
         if self.get_size() != self._size:
             raise Exception('Integrity check for PIB failed size')
@@ -182,15 +184,16 @@ class PIB:
         return crc
 
     def _pack(self, mem, data):
-        offset, size, fmt = mem
+        offset, fmt = mem
         struct.pack_into(fmt, self._buf, offset, data)
 
     def _unpack(self, mem):
-        offset, size, fmt = mem
+        offset, fmt = mem
         return struct.unpack_from(fmt, self._buf, offset)[0]
 
     def _calc_crc(self, crc, mem):
-        offset, size, fmt = mem
+        offset, fmt = mem
+        size = struct.calcsize(fmt)
         for n in self._buf[offset: offset + size]:
             crc ^= n
             for _ in range(8):
