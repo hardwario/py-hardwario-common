@@ -4,35 +4,45 @@ import array
 
 class PIB:
 
-    SIGNATURE = (0, '<L')
+    VERSION_1 = 1
+    VERSION_2 = 2
+
+    SIGNATURE = {
+        1: (0, '<L'),
+        2: (0, '>L')
+    }
     VERSION = (4, 'B')
     SIZE = {
         1: (0x08, '<H'),
-        2: (0x05, '<B')
-    }
-    SERIAL_NUMBER = {
-        1: (0x0c, '<L'),
-        2: (0x06, '<L')
-    }
-    HW_REVISION = {
-        1: (0x10, '<H'),
-        2: (0x0a, '<H')
-    }
-    HW_VARIANT = {
-        1: (0x14, '<L'),
-        2: (0x0c, '<L')
+        2: (0x05, '>B')
     }
     VENDOR_NAME = {
         1: (0x18, '<32s'),
-        2: (0x10, '<32s')
+        2: (0x06, '16s')
     }
     PRODUCT_NAME = {
         1: (0x38, '<32s'),
-        2: (0x30, '<32s')
+        2: (0x16, '16s')
+    }
+    HW_VARIANT = {
+        1: (0x14, '<L'),
+        2: (0x26, '12s')
+    }
+    HW_REVISION = {
+        1: (0x10, '<H'),
+        2: (0x32, '8s')
+    }
+    SERIAL_NUMBER = {
+        1: (0x0c, '<L'),
+        2: (0x3a, '12s')
     }
 
-    RF_OFFSET = (88, 2, '<h')
-    RF_CORRECTION = (88, 4, '<L')
+    RF_OFFSET = {
+        1: (88, 2, '<h')
+    }
+    RF_CORRECTION = {
+        1: (88, 4, '<L')
+    }
 
     def __init__(self, version=1, buf=None):
         self._buf = array.array('B', [0xff] * 128)
@@ -40,9 +50,11 @@ class PIB:
         if version == 1:
             self._default_size = 92  # 0x58 + 4
         elif version == 2:
-            self._default_size = 84  # 0x50 + 4
+            self._default_size = 74  # 0x46 + 4
         else:
             raise Exception('PIB failed version')
+
+        self._buf[4] = self._default_version & 0xff
 
         self._is_core_module = False
         self._has_rf_correction = False
@@ -58,10 +70,10 @@ class PIB:
 
         self._update_family()
 
-        if self.get_signature() != 0xbabecafe:
-            raise Exception('Integrity check for PIB failed signature')
         if self.get_version() not in (1, 2):
             raise Exception('Integrity check for PIB failed version')
+        if self.get_signature() != 0xbabecafe:
+            raise Exception('Integrity check for PIB failed signature')
         if self.get_size() != self._size:
             raise Exception('Integrity check for PIB failed size')
         if self.get_crc() != self.calc_crc():
@@ -71,8 +83,8 @@ class PIB:
         self._size = self._default_size
         for i in range(128):
             self._buf[i] = 0xff
+        self._buf[4] = self._default_version & 0xff
         self._pack(self.SIGNATURE, 0xbabecafe)
-        self._pack(self.VERSION, self._default_version)
         self.set_vendor_name('')
         self.set_product_name('')
         self._is_core_module = False
@@ -97,7 +109,7 @@ class PIB:
         return self._unpack(self.SIGNATURE)
 
     def get_version(self):
-        return self._unpack(self.VERSION)
+        return self._buf[4]
 
     def get_size(self):
         return self._unpack(self.SIZE)
@@ -106,7 +118,7 @@ class PIB:
         return self._unpack(self.SERIAL_NUMBER)
 
     def set_serial_number(self, value):
-        if (value & 0xc0000000) != 0x80000000:
+        if (int(value) & 0xc0000000) != 0x80000000:
             raise Exception('Bad serial number format')
         self._pack(self.SERIAL_NUMBER, value)
         self._update_family()
@@ -125,16 +137,16 @@ class PIB:
         self._pack(self.HW_VARIANT, value)
 
     def get_vendor_name(self):
-        return '%s' % self._unpack(self.VENDOR_NAME).decode('ascii').rstrip('\0')
+        return self._unpack(self.VENDOR_NAME)
 
     def set_vendor_name(self, value):
-        self._pack(self.VENDOR_NAME, value.encode())
+        self._pack(self.VENDOR_NAME, value)
 
     def get_product_name(self):
-        return self._unpack(self.PRODUCT_NAME).decode('ascii').rstrip('\0')
+        return self._unpack(self.PRODUCT_NAME)
 
     def set_product_name(self, value):
-        self._pack(self.PRODUCT_NAME, value.encode())
+        self._pack(self.PRODUCT_NAME, value)
 
     def get_rf_offset(self):
         if not self._is_core_module:
@@ -165,7 +177,7 @@ class PIB:
         return self._buf.tobytes()
 
     def get_family(self):
-        sn = self.get_serial_number()
+        sn = int(self.get_serial_number())
         if (sn & 0xc0000000) != 0x80000000:
             raise Exception('Bad serial number format')
         return (sn >> 20) & 1023
@@ -209,17 +221,22 @@ class PIB:
         else:
             return self._calc_crc(0xffffffff, 0, self._size - 4)
 
-    def _pack(self, mem, data):
+    def _pack(self, mem, value):
         if isinstance(mem, dict):
             mem = mem[self.get_version()]
         offset, fmt = mem
-        struct.pack_into(fmt, self._buf, offset, data)
+        if fmt[-1] == 's':
+            value = value.encode()
+        struct.pack_into(fmt, self._buf, offset, value)
 
     def _unpack(self, mem):
         if isinstance(mem, dict):
             mem = mem[self.get_version()]
         offset, fmt = mem
-        return struct.unpack_from(fmt, self._buf, offset)[0]
+        value = struct.unpack_from(fmt, self._buf, offset)[0]
+        if fmt[-1] == 's':
+            return value.decode('ascii').rstrip('\0')
+        return value
 
     def _calc_crc_item(self, crc, mem):
         if isinstance(mem, dict):
