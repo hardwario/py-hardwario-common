@@ -169,11 +169,13 @@ class PIB:
         self._pack(self.RF_CORRECTION, value)
 
     def get_crc(self):
-        return struct.unpack_from('<L', self._buf, self._size - 4)[0]
+        fmt = '<L' if self.get_version() == 1 else '>L'
+        return struct.unpack_from(fmt, self._buf, self._size - 4)[0]
 
     def get_buffer(self):
         crc = self.calc_crc()
-        struct.pack_into('<L', self._buf, self._size - 4, crc)
+        fmt = '<L' if self.get_version() == 1 else '>L'
+        struct.pack_into(fmt, self._buf, self._size - 4, crc)
         return self._buf.tobytes()
 
     def get_family(self):
@@ -186,14 +188,20 @@ class PIB:
         payload = {
             'signature': '0x%08x' % self.get_signature(),
             'version': '0x%02x' % self.get_version(),
-            'size': '0x%04x' % self.get_size(),
-            'serial_number': '0x%08x' % self.get_serial_number(),
-            'hw_revision': '0x%04x' % self.get_hw_revision(),
-            'hw_variant': '0x%08x' % self.get_hw_variant(),
+            'size': '0x%02x' % self.get_size(),
+            'crc': '0x%08x' % self.get_crc(),
             'vendor_name': self.get_vendor_name(),
             'product_name': self.get_product_name(),
-            'crc': '0x%08x' % self.get_crc()
         }
+
+        if self.get_version() == 1:
+            payload['serial_number'] = '0x%08x' % self.get_serial_number()
+            payload['hw_revision'] = '0x%04x' % self.get_hw_revision()
+            payload['hw_variant'] = '0x%08x' % self.get_hw_variant()
+        else:
+            payload['serial_number'] = self.get_serial_number()
+            payload['hw_revision'] = self.get_hw_revision()
+            payload['hw_variant'] = self.get_hw_variant()
 
         if self._is_core_module:
             payload['rf_offset'] = self.get_rf_offset()
