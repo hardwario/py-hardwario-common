@@ -1,5 +1,10 @@
 import struct
 import array
+import re
+
+
+class PIBException(Exception):
+    pass
 
 
 class PIB:
@@ -18,23 +23,23 @@ class PIB:
     }
     VENDOR_NAME = {
         1: (0x18, '<32s'),
-        2: (0x06, '16s')
+        2: (0x06, '17s')
     }
     PRODUCT_NAME = {
         1: (0x38, '<32s'),
-        2: (0x16, '16s')
+        2: (0x17, '17s')
     }
     HW_VARIANT = {
         1: (0x14, '<L'),
-        2: (0x26, '12s')
+        2: (0x28, '11s')
     }
     HW_REVISION = {
         1: (0x10, '<H'),
-        2: (0x32, '8s')
+        2: (0x33, '7s')
     }
     SERIAL_NUMBER = {
         1: (0x0c, '<L'),
-        2: (0x3a, '12s')
+        2: (0x3a, '11s')
     }
 
     RF_OFFSET = {
@@ -48,9 +53,9 @@ class PIB:
         self._buf = array.array('B', [0xff] * 128)
         self._default_version = version
         if version == 1:
-            self._default_size = 92  # 0x58 + 4
+            self._default_size = 0x58 + 4
         elif version == 2:
-            self._default_size = 74  # 0x46 + 4
+            self._default_size = 0x45 + 4
         else:
             raise Exception('PIB failed version')
 
@@ -114,58 +119,86 @@ class PIB:
     def get_size(self):
         return self._unpack(self.SIZE)
 
-    def get_serial_number(self):
-        return self._unpack(self.SERIAL_NUMBER)
-
-    def set_serial_number(self, value):
-        if (int(value) & 0xc0000000) != 0x80000000:
-            raise Exception('Bad serial number format')
-        self._pack(self.SERIAL_NUMBER, value)
-        self._update_family()
-        self._pack(self.SIZE, self._size)
-
-    def get_hw_revision(self):
-        return self._unpack(self.HW_REVISION)
-
-    def set_hw_revision(self, value):
-        self._pack(self.HW_REVISION, value)
-
-    def get_hw_variant(self):
-        return self._unpack(self.HW_VARIANT)
-
-    def set_hw_variant(self, value):
-        self._pack(self.HW_VARIANT, value)
-
     def get_vendor_name(self):
         return self._unpack(self.VENDOR_NAME)
 
     def set_vendor_name(self, value):
+        max_len = 31 if self.get_version() == 1 else 16
+        if len(value) > max_len:
+            raise PIBException(f'Bad Vendor name (max {max_len} characters)')
         self._pack(self.VENDOR_NAME, value)
 
     def get_product_name(self):
         return self._unpack(self.PRODUCT_NAME)
 
     def set_product_name(self, value):
+        max_len = 31 if self.get_version() == 1 else 16
+        if len(value) > max_len:
+            raise PIBException(f'Bad Product name (max {max_len} characters)')
         self._pack(self.PRODUCT_NAME, value)
+
+    def get_hw_variant(self):
+        return self._unpack(self.HW_VARIANT)
+
+    def set_hw_variant(self, value):
+        if self.get_version() == 2 and len(value) > 10:
+            raise PIBException('Bad Hardware variant (max 10 characters)')
+        self._pack(self.HW_VARIANT, value)
+
+    def get_hw_revision(self):
+        return self._unpack(self.HW_REVISION)
+
+    def set_hw_revision(self, value):
+        if self.get_version() == 2:
+            if len(value) > 6:
+                raise PIBException('Bad Hardware variant (max 6 characters)')
+
+            if not re.match(r'^R(\d\d?)\.(\d\d?)$', value):
+                raise PIBException(
+                    'Bad Hardware version format, expect: Rx.y .')
+
+        self._pack(self.HW_REVISION, value)
+
+    def get_serial_number(self):
+        return self._unpack(self.SERIAL_NUMBER)
+
+    def set_serial_number(self, value):
+        if self.get_version() == 2:
+            if len(value) > 10:
+                raise PIBException('Bad Serial number (max 10 characters).')
+
+            try:
+                sn = int(value)
+            except Exception:
+                raise PIBException('Bad serial number')
+        else:
+            sn = value
+
+        if (sn & 0xc0000000) != 0x80000000:
+            raise PIBException('Bad serial number format')
+
+        self._pack(self.SERIAL_NUMBER, value)
+        self._update_family()
+        self._pack(self.SIZE, self._size)
 
     def get_rf_offset(self):
         if not self._is_core_module:
-            raise Exception('Only CORE module')
+            raise PIBException('Only CORE module')
         return self._unpack(self.RF_OFFSET)
 
     def set_rf_offset(self, value):
         if not self._is_core_module:
-            raise Exception('Only CORE module')
+            raise PIBException('Only CORE module')
         self._pack(self.RF_OFFSET, value)
 
     def get_rf_correction(self):
         if not self._has_rf_correction:
-            raise Exception('This device has no RF correction')
+            raise PIBException('This device has no RF correction')
         return self._unpack(self.RF_CORRECTION)
 
     def set_rf_correction(self, value):
         if not self._has_rf_correction:
-            raise Exception('This device has no RF correction')
+            raise PIBException('This device has no RF correction')
         self._pack(self.RF_CORRECTION, value)
 
     def get_crc(self):
@@ -181,7 +214,7 @@ class PIB:
     def get_family(self):
         sn = int(self.get_serial_number())
         if (sn & 0xc0000000) != 0x80000000:
-            raise Exception('Bad serial number format')
+            raise PIBException('Bad serial number format')
         return (sn >> 20) & 1023
 
     def get_dict(self):
