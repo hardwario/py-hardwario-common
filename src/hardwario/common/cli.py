@@ -32,7 +32,7 @@ def main():
             pass
 
     try:
-        cli_root(obj={})
+        cli_root(obj={}, auto_envvar_prefix='HARDWARIO')
     except KeyboardInterrupt:
         pass
     except Exception as e:
