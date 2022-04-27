@@ -3,17 +3,18 @@ import sys
 import pkgutil
 import importlib
 import click
-import hardwario
 from loguru import logger
+import hardwario
 
 DEFAULT_LOG_LEVEL = 'DEBUG'
-DEFAULT_LOG_FILE = os.path.expanduser("~/.hardwario/console.log")
+DEFAULT_LOG_FILE = os.path.expanduser("~/.hardwario/cli.log")
 
 os.makedirs(os.path.expanduser("~/.hardwario"), exist_ok=True)
 
 
 @click.group()
-@click.option('--log', 'log_level', type=click.Choice(['debug', 'info', 'warning', 'error']), help='Log level', default="warning")
+@click.option('--log-level', type=click.Choice(['debug', 'info', 'success', 'warning', 'error', 'critical']),
+              help='Log level to stderr', default="critical", show_default=True)
 def cli_root(log_level):
     '''HARDWARIO Command Line Tool.'''
     logger.add(sys.stderr, level=log_level.upper())
@@ -24,7 +25,10 @@ def main():
 
     logger.remove()
     logger.add(DEFAULT_LOG_FILE,
-               format="{time} | {level} | {name}.{function}: {message}", level="TRACE", rotation="10 MB")
+               format='{time} | {level} | {name}.{function}: {message}',
+               level='TRACE',
+               rotation='10 MB',
+               retention=3)
 
     logger.debug('Argv: {}', sys.argv)
 
@@ -34,8 +38,11 @@ def main():
             continue
         logger.debug('Discovered module: {}', name)
         try:
-            module = importlib.import_module(name + '.cli')
-            cli_root.add_command(module.cli)
+            module = importlib.import_module(name)
+            if hasattr(module, '__version__'):
+                logger.debug('Module: {} version {}', name, module.__version__)
+            if hasattr(module, 'cli'):
+                cli_root.add_command(module.cli.cli)
         except Exception as e:
             logger.warning('Module cli import: {}', e)
             if os.getenv('DEBUG', False):
