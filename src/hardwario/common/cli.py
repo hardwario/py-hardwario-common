@@ -14,16 +14,18 @@ os.makedirs(os.path.expanduser("~/.hardwario"), exist_ok=True)
 
 
 def version_cb(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
     modules = ctx.obj['modules']
     for name in sorted(modules):
         click.echo(f'{name} {modules[name]}')
     ctx.exit()
 
 
-@ click.group()
-@ click.option('--log-level', type=click.Choice(['debug', 'info', 'success', 'warning', 'error', 'critical']),
-               help='Log level to stderr', default="critical", show_default=True)
-@ click.option('--version', is_flag=True, expose_value=False, help='Show the version and exit.', callback=version_cb)
+@click.group()
+@click.option('--log-level', type=click.Choice(['debug', 'info', 'success', 'warning', 'error', 'critical']),
+              help='Log level to stderr', default="critical", show_default=True)
+@click.option('--version', is_flag=True, expose_value=False, help='Show the version and exit.', callback=version_cb)
 def cli_root(log_level):
     '''HARDWARIO Command Line Tool.'''
     logger.add(sys.stderr, level=log_level.upper())
@@ -56,7 +58,7 @@ def main():
             module = importlib.import_module(name)
             # modules[name] = '?'
             if hasattr(module, '__version__'):
-                logger.debug('Module: {} version {}', name, module.__version__)
+                logger.debug('Module: {} Version {}', name, module.__version__)
                 modules[name] = module.__version__
             if hasattr(module, 'cli'):
                 cli_root.add_command(module.cli.cli)
@@ -67,7 +69,8 @@ def main():
             pass
 
     try:
-        cli_root(obj={'modules': modules}, auto_envvar_prefix='HARDWARIO')
+        with logger.catch(reraise=True, exclude=KeyboardInterrupt):
+            cli_root(obj={'modules': modules}, auto_envvar_prefix='HARDWARIO')
     except KeyboardInterrupt:
         pass
     except Exception as e:
