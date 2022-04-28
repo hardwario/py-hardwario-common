@@ -14,16 +14,16 @@ os.makedirs(os.path.expanduser("~/.hardwario"), exist_ok=True)
 
 
 def version_cb(ctx, param, value):
-    for name, module in ctx.obj['modules'].items():
-        version = module.__version__ if hasattr(module, '__version__') else '?'
-        click.echo(f'{name} {version}')
+    modules = ctx.obj['modules']
+    for name in sorted(modules):
+        click.echo(f'{name} {modules[name]}')
     ctx.exit()
 
 
-@click.group()
-@click.option('--log-level', type=click.Choice(['debug', 'info', 'success', 'warning', 'error', 'critical']),
-              help='Log level to stderr', default="critical", show_default=True)
-@click.option('--version', is_flag=True, expose_value=False, help='Show the version and exit.', callback=version_cb)
+@ click.group()
+@ click.option('--log-level', type=click.Choice(['debug', 'info', 'success', 'warning', 'error', 'critical']),
+               help='Log level to stderr', default="critical", show_default=True)
+@ click.option('--version', is_flag=True, expose_value=False, help='Show the version and exit.', callback=version_cb)
 def cli_root(log_level):
     '''HARDWARIO Command Line Tool.'''
     logger.add(sys.stderr, level=log_level.upper())
@@ -41,7 +41,11 @@ def main():
 
     logger.debug('Argv: {}', sys.argv)
 
-    modules = {}
+    modules = {
+        'hardwario.common': hardwario.common.__version__
+    }
+
+    logger.debug('Module: hardwario.common Version: {}', hardwario.common.__version__)
 
     # discovered and load hardwario cli plugins
     for finder, name, ispkg in pkgutil.iter_modules(hardwario.__path__, hardwario.__name__ + '.'):
@@ -50,9 +54,10 @@ def main():
         logger.debug('Discovered module: {}', name)
         try:
             module = importlib.import_module(name)
-            modules[name] = module
+            # modules[name] = '?'
             if hasattr(module, '__version__'):
                 logger.debug('Module: {} version {}', name, module.__version__)
+                modules[name] = module.__version__
             if hasattr(module, 'cli'):
                 cli_root.add_command(module.cli.cli)
         except Exception as e:
