@@ -39,8 +39,8 @@ include = [
 hardwario = "hardwario.common.cli:main"
 
 [tool.poetry.dependencies]
-python = ">=3.6"
-click = "^8.0.3"
+python = ">=3.7"
+click = ">=8.1"
 loguru = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
