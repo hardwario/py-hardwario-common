@@ -57,13 +57,14 @@ def main():
         try:
             module = importlib.import_module(name)
             # modules[name] = '?'
-            if hasattr(module, '__version__'):
-                logger.debug('Module: {} Version {}', name, module.__version__)
-                modules[name] = module.__version__
+            v = module.__version__ if hasattr(module, '__version__') else '?'
+            logger.debug('Module: {} Version {}', name, v)
+            modules[name] = v
             if hasattr(module, 'cli'):
                 cli_root.add_command(module.cli.cli)
         except Exception as e:
-            logger.warning('Module cli import: {}', e)
+            click.secho(f'Warning: Unable to import module {name} reason: {str(e)}', err=True, fg='red')
+            logger.error('Module cli import: {}', e)
             if os.getenv('DEBUG', False):
                 raise e
             pass
