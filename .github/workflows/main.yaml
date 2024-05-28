@@ -31,10 +31,11 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - '3.7'
           - '3.8'
           - '3.9'
           - '3.10'
+          - '3.11'
+          - '3.12'
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -56,7 +57,7 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Publish
         env:
           POETRY_HTTP_BASIC_PYPI_USERNAME: __token__
